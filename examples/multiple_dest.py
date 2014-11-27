@@ -1,19 +1,13 @@
-# semilog: Simple structured logging library for Python
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Example of logging to multiple destinations
+"""
+__author__ = 'Dan Gunter <dkgunter@lbl.gov>'
 
-A semi-structured log is essentially a Python dictionary, serialized.
+from semilog.semilog import Subject, TextStream
 
-Design goals are minimal code, maximum flexibility, useful functionality.
-
-## Basic usage
-
-    from semilog import Subject
-    log = Subject()  # adds default TextStream observer
-    log.event('i', 'hello', msg="Hello, world!")
-
-## Multiple destinations
-
-    from semilog.semilog import Subject, TextStream
-
+if __name__ == '__main__':
     log = Subject({})  # empty dict avoids default config
 
     logfile = open("/tmp/mylog", "a")
@@ -27,3 +21,4 @@ Design goals are minimal code, maximum flexibility, useful functionality.
 
     log.event('i', 'hello', msg="Hello, world!")  # only to file
     log.event('w', 'goodbye', msg="Later!")  # both
+
