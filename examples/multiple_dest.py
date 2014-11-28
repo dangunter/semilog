@@ -5,20 +5,23 @@ Example of logging to multiple destinations
 """
 __author__ = 'Dan Gunter <dkgunter@lbl.gov>'
 
-from semilog.semilog import Subject, TextStream
+from semilog import Subject, Stream
 
-if __name__ == '__main__':
+def main():
     log = Subject({})  # empty dict avoids default config
 
     logfile = open("/tmp/mylog", "a")
     fmt = "[{level}] {isotime} {event}: {msg}"
-
-    log.configure({ 'observers': {
+    log.configure({'observers': {
         # Log anything at warning and above to stderr
-        'console': TextStream(fmt, severity='W'),
+        'console': Stream(fmt=fmt, severity='W'),
         # Log everything including traces to the file
-        'logfile': TextStream(fmt, stream=logfile, severity='T')}})
+        'logfile': Stream(fmt=fmt, stream=logfile, severity='T')}})
 
     log.event('i', 'hello', msg="Hello, world!")  # only to file
     log.event('w', 'goodbye', msg="Later!")  # both
+
+if __name__ == '__main__':
+    main()
+
 

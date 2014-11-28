@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Description.
+Semi-structured logging for Python.
 """
-from semilog import semilog
+import semilog
 
 __author__ = 'Dan Gunter <dkgunter@lbl.gov>'
 __date__ = '2014-11-27'
@@ -30,8 +30,10 @@ packages = [
 package_data = {
 }
 
-requires = [
-]
+requires = []
+with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as f:
+    for line in f:
+        requires.append(line.strip())
 
 classifiers = [
     'Development Status :: 4 - Beta',
