@@ -19,7 +19,7 @@ import sys
 import threading
 import time
 import zmq
-from semilog.const import Keys, Severity, MAX_SEVERITY, DEFAULT_PORT
+from semilog import const # import Keys, Severity, MAX_SEVERITY, DEFAULT_PORT
 
 class Subject(object):
     """Subject role in the observer pattern.
@@ -31,7 +31,7 @@ class Subject(object):
     """
     default_severity = 'I'  # of generated events
     default_config = {
-        Keys.obs: {'default': 'Stream("{level} {isotime} {event}: {kvp}")'}
+        const.Keys.obs: {'default': 'Stream("{level} {isotime} {event}: {kvp}")'}
     }
     MAX_STORED = 100  # max. num events buffered async.
 
@@ -64,7 +64,7 @@ class Subject(object):
         """
         if not hasattr(config, 'items'):
             raise TypeError('configure: dict argument required')
-        observers = config.get(Keys.obs, None)
+        observers = config.get(const.Keys.obs, None)
         if observers:
             items =(observers.items()
                 if hasattr(observers, 'items')  # dict
@@ -82,10 +82,11 @@ class Subject(object):
             name (str): Name of event
             mapping (dict): Other key/value pairs for event
         """
+        K = const.Keys
         t = time.time()
-        mapping[Keys.ts] = t
-        mapping[Keys.event] = name
-        mapping[Keys.lvl] = severity[0].upper()
+        mapping[K.ts] = t
+        mapping[K.event] = name
+        mapping[K.lvl] = severity[0].upper()
         for name, obs in self.observers.items():
             if obs.accept(mapping):
                 mcopy = mapping.copy()  # allows observer to muck w/mapping
@@ -146,11 +147,11 @@ class Observer(object):
             self.accept_severity = max(severity, 0)
         else:
             s = severity or self.default_severity
-            self.accept_severity = Severity[s.upper()]
+            self.accept_severity = const.Severity[s.upper()]
 
     def accept(self, mapping):
-        s = mapping[Keys.severity]
-        return Severity.get(s, MAX_SEVERITY) <= self.accept_severity
+        s = mapping[const.Keys.severity]
+        return const.Severity.get(s, const.MAX_SEVERITY) <= self.accept_severity
 
     def event(self, mapping):
         pass
@@ -160,7 +161,7 @@ class TextFormatter(object):
     """
 
     derived_values = ['isotime', 'level']
-    derived_shadow = {'isotime': Keys.ts, 'level': Keys.lvl}
+    derived_shadow = {'isotime': const.Keys.ts, 'level': const.Keys.lvl}
     KVP_SEP, KV_SEP = ' ', '='
     SEV_NAMES = {'F': 'FATAL', 'E': 'ERROR', 'W': 'WARNING', 'I': 'INFO',
                  'D': 'DEBUG', 'T': 'TRACE'}
@@ -184,9 +185,9 @@ class TextFormatter(object):
         pairs = []
         for k, v in m.items():
             if k not in self.fields:
-                if k == Keys.ts:
+                if k == const.Keys.ts:
                     v = '{:.6f}'.format(v)
-                elif k == Keys.lvl:
+                elif k == const.Keys.lvl:
                     v = self.SEV_NAMES[v]
                 if isinstance(v, six.string_types):
                     if ' ' in v or '\t' in v:
@@ -205,10 +206,10 @@ class TextFormatter(object):
         return self.format_str.format(**mapping)
 
     def format_isotime(self, m):
-        m['isotime'] = datetime.fromtimestamp(m[Keys.ts]).isoformat()
+        m['isotime'] = datetime.fromtimestamp(m[const.Keys.ts]).isoformat()
 
     def format_level(self, m):
-        m['level'] = self.SEV_NAMES[m[Keys.lvl]]
+        m['level'] = self.SEV_NAMES[m[const.Keys.lvl]]
 
 
 class Stream(Observer):
@@ -216,8 +217,6 @@ class Stream(Observer):
     """
 
     json_format = True  # if False, use pickle
-
-    REC_SEP = '\n'  # record separator, for formatted text and JSON
 
     def __init__(self, fmt=None, stream=sys.stderr, **kwargs):
         """Create new stream.
@@ -240,11 +239,11 @@ class Stream(Observer):
             self._dump = pickle.dump
 
     def _dump_text(self, mapping, stream):
-        stream.write(self._fmt.format_event(mapping) + self.REC_SEP)
+        stream.write(self._fmt.format_event(mapping) + const.REC_SEP)
 
     def _dump_json(self, mapping, stream):
         json.dump(mapping, self.stream)
-        stream.write(self.REC_SEP)
+        stream.write(const.REC_SEP)
 
     def event(self, mapping):
         self._dump(mapping, self.stream)
@@ -258,7 +257,7 @@ class Remote(Observer):
 
     _context = None  # internal zmq state
 
-    def __init__(self, host, port=DEFAULT_PORT, fmt=None, **kwargs):
+    def __init__(self, host, port=const.DEFAULT_PORT, fmt=None, **kwargs):
         """Create new stream.
 
         Default format is JSON, also available is Python pickle or text.
@@ -284,7 +283,7 @@ class Remote(Observer):
             self._send = self.socket.send_pyobj
 
     def _send_text(self, mapping):
-        s = self._fmt.format_event(mapping) + self.REC_SEP
+        s = self._fmt.format_event(mapping) + const.REC_SEP
         self.socket.send_string(s)
 
     def event(self, mapping):

@@ -22,3 +22,4 @@ Severity = {
 
 DEFAULT_PORT = 9000  # Listen port for socket messages
 
+REC_SEP = '\n'  # record separator, for formatted text and JSON
