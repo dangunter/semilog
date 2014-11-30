@@ -16,15 +16,20 @@ from collections import deque
 import re
 import six
 import sys
+import syslog
 import threading
 import time
+import types
 import zmq
 from semilog import const # import Keys, Severity, MAX_SEVERITY, DEFAULT_PORT
 
 class Subject(object):
     """Subject role in the observer pattern.
 
-    Events are created on a subject with event().
+    Events are created on a subject with event(). If you don't want to pass
+    the severity level as a letter-code, you can also use a method name equal
+    to the lowercased valuefor the corresponding severity in const.Levelname.
+    So, e.g., `event('i', 'foo')` can be also written as `info('foo')`.
 
     All observers attached to a subject will be asked to `accept()` each event and,
     if that returns true, receive it through `event()`.
@@ -47,6 +52,7 @@ class Subject(object):
         if config is None:
             config = self.default_config
         self.configure(config)
+        self._add_sugar()
         if async:
             # init for async. sending thread
             self._q = deque(maxlen=self.MAX_STORED)
@@ -126,6 +132,13 @@ class Subject(object):
                 self._q.popleft()
             time.sleep(0.1)  # pause for new data
 
+    def _add_sugar(self):
+        """Add syntax sugar methods, one for each const.Levelname, to Subject."""
+        for sev, lvl in const.Levelname.items():
+            sugar = lambda self, n, __sev=sev, **m: self.event(__sev, n, **m)
+            setattr(self, lvl.lower(), types.MethodType(sugar, self))
+
+
 class NullSubject(object):
     """Subject that does nothing."""
     def __init__(self, **kw):
@@ -142,12 +155,11 @@ class Observer(object):
 
     default_severity = 'I'  # of accepted events
 
-    def __init__(self, severity='I'):
+    def __init__(self, severity=default_severity):
         if isinstance(severity, int):
             self.accept_severity = max(severity, 0)
         else:
-            s = severity or self.default_severity
-            self.accept_severity = const.Severity[s.upper()]
+            self.accept_severity = const.Severity[severity.upper()]
 
     def accept(self, mapping):
         s = mapping[const.Keys.severity]
@@ -163,8 +175,7 @@ class TextFormatter(object):
     derived_values = ['isotime', 'level']
     derived_shadow = {'isotime': const.Keys.ts, 'level': const.Keys.lvl}
     KVP_SEP, KV_SEP = ' ', '='
-    SEV_NAMES = {'F': 'FATAL', 'E': 'ERROR', 'W': 'WARNING', 'I': 'INFO',
-                 'D': 'DEBUG', 'T': 'TRACE'}
+    SEV_NAMES = const.Levelname
 
     def __init__(self, format_str):
         """Create new formatter.
@@ -276,7 +287,7 @@ class Remote(Observer):
         self.socket = self._context.socket(zmq.PUSH)
         self.socket.connect(url)
         if fmt is not None:
-            self._fmt, self._send = fmt, self._send_text
+            self._fmt, self._send = TextFormatter(fmt), self._send_text
         elif self.json_format:
             self._send = self.socket.send_json
         else:
@@ -289,3 +300,26 @@ class Remote(Observer):
     def event(self, mapping):
         self._send(mapping)
 
+
+class Syslog(Observer):
+    """Send events to Unix syslog.
+    """
+    def __init__(self, facility, fmt="{isotime} {kvp}", options=0, **kwargs):
+        """Create new syslogger.
+
+        Args:
+            facility (int): The syslog module facility (LOG_KERN, LOG_USER, ..)
+                            that will be used for all events.
+            fmt (str): Text Format for messages. If None, use JSON
+            options (int): Value for `logoption` argument to syslog.openlog()
+            kwargs (dict): Keywords passed to Observer
+        """
+        Observer.__init__(self, **kwargs)
+        self.syslog = syslog.openlog(facility=facility, logoption=options)
+        self._fmt = TextFormatter(fmt)
+
+    def event(self, mapping):
+        msg = self._fmt.format_event(mapping)
+        sev = mapping[const.Keys.severity]
+        priority = const.Priority.get(sev, syslog.LOG_NOTICE)
+        self.syslog.syslog(priority, msg)

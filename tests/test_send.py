@@ -22,6 +22,14 @@ def test_event():
     s.event('x', 'dumb', val=[1, 3])
     s.event('i', 'hi', val={1:3})
 
+def test_sugar():
+    obs = Last()
+    s = send.Subject({'observers': [obs]})
+    s.info('yo')
+    assert obs.last_event['severity'] == 'I'
+    s.error('doh')
+    assert obs.last_event['severity'] == 'E'
+
 def test_async():
     log = send.Subject({'observers':[Pokey(1)]}, async=True)
     t0 = time.time()
@@ -47,3 +55,9 @@ class Pokey(send.Observer):
 
     def event(self, event):
         time.sleep(self.sec)
+
+class Last(send.Observer):
+    def accept(self, m):
+        return True
+    def event(self, event):
+        self.last_event = event
