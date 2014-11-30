@@ -27,12 +27,9 @@ def main():
         for i in range(3)}
 
     # create receiver
-    receiver = receive.Server(got_message, host=host, port=port)
-
-    # run receiver loop in a thread
-    thr = threading.Thread(target=receiver.run)
+    server = receive.Server(got_message, host=host, port=port)
     _log.event('i', 'server.start', host=host, port=port)
-    thr.start()
+    server.start()
 
     # send some messages
     n = 5
@@ -47,8 +44,7 @@ def main():
 
     # stop the receiver
     _log.event('i', 'server.stop', timeout=5)
-    receiver.is_done(True)
-    thr.join(timeout=5)
+    server.stop()
     _log.event('i', 'server.done', status=0)
 
     return 0

@@ -12,9 +12,11 @@ See package README.md for usage examples.
 from datetime import datetime
 import json
 from six.moves import cPickle as pickle
+from collections import deque
 import re
 import six
 import sys
+import threading
 import time
 import zmq
 from semilog.const import Keys, Severity, MAX_SEVERITY, DEFAULT_PORT
@@ -24,29 +26,50 @@ class Subject(object):
 
     Events are created on a subject with event().
 
-    All observers attached to a subject will be asked to accept() each event and,
-    if that returns true, receive it through event().
+    All observers attached to a subject will be asked to `accept()` each event and,
+    if that returns true, receive it through `event()`.
     """
     default_severity = 'I'  # of generated events
     default_config = {
         Keys.obs: {'default': 'Stream("{level} {isotime} {event}: {kvp}")'}
     }
+    MAX_STORED = 100  # max. num events buffered async.
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, async=False):
+        """Create new instance.
+
+        Args:
+            config (dict): Configuration (see `configure()` method)
+            async (bool): If true, send events from a separate thread to
+                          avoid blocking the caller.
+        """
         self.observers = {}
         if config is None:
             config = self.default_config
         self.configure(config)
+        if async:
+            # init for async. sending thread
+            self._q = deque(maxlen=self.MAX_STORED)
+            self._thr = threading.Thread(target=self._send_events, daemon=True)
+            self._thr.start()
+        else:
+            self._q = None  # use as flag
 
     def configure(self, config):
         """Configure the subject.
 
          Args:
              config (dict): Has the following keys:
-                  - observers: List of Observer instances
+                  - observers: Mapping or list of Observer instances
         """
-        if Keys.obs in config:
-            for obs_name, obs in config[Keys.obs].items():
+        if not hasattr(config, 'items'):
+            raise TypeError('configure: dict argument required')
+        observers = config.get(Keys.obs, None)
+        if observers:
+            items =(observers.items()
+                if hasattr(observers, 'items')  # dict
+                else enumerate(observers, 1))   # list
+            for obs_name, obs in items:
                 if isinstance(obs, six.string_types):
                     obs = eval(obs)
                 self.observers[obs_name] = obs
@@ -59,12 +82,48 @@ class Subject(object):
             name (str): Name of event
             mapping (dict): Other key/value pairs for event
         """
-        mapping[Keys.ts] = time.time()
+        t = time.time()
+        mapping[Keys.ts] = t
         mapping[Keys.event] = name
         mapping[Keys.lvl] = severity[0].upper()
-        for _, obs in self.observers.items():
+        for name, obs in self.observers.items():
             if obs.accept(mapping):
-                obs.event(mapping.copy())
+                mcopy = mapping.copy()  # allows observer to muck w/mapping
+                if self._q is not None:
+                    self._q.append((obs, mcopy))
+                else:
+                    obs.event(mcopy)
+
+    def qlen(self):
+        """Number of queued messages."""
+        if self._q is None:
+            return 0
+        return len(self._q)
+
+    def drain(self, timeout=10):
+        """Wait for queue to drain.
+
+        Args:
+            timeout (float): Timeout in seconds
+        """
+        t = time.time()
+        while self.qlen() > 0:
+            time.sleep(0.1)
+            if time.time() - t > timeout:
+                return False
+        return True
+
+    def _send_events(self):
+        """Send events from queue forever.
+        Intended to run in a separate thread.
+        """
+        while True:
+            while len(self._q) > 0:
+                obs, mapping = self._q[0]
+                obs.event(mapping)
+                # only pop after event, so empty queue means truly finished
+                self._q.popleft()
+            time.sleep(0.1)  # pause for new data
 
 class NullSubject(object):
     """Subject that does nothing."""
@@ -231,14 +290,3 @@ class Remote(Observer):
     def event(self, mapping):
         self._send(mapping)
 
-
-def __test():
-    log = Subject()
-    log.observers['default'].accept_severity = Severity['W']
-    log.observers['errs'] = Stream(fmt="**ERROR** {event} :: {text}", severity='E')
-    log.observers['json'] = Stream(severity='W')
-    log.event('i', 'greeting', text='Hello, World!')
-    log.event('e', 'alert', text='Look out, World!')
-
-if __name__ == '__main__':
-    __test()
