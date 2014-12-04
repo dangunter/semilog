@@ -34,15 +34,43 @@ Below are some examples of usage.
 
 ## Basic
 
-A log object is an instance of `Subject`, with one or more `Observer` subclasses attached to it. By default, a `Stream` observer, logging to stderr with a text format, is added to a new Subject instance.
+A log object is an instance of `Subject`, with one or more `Observer` subclasses 
+attached to it. By default, a `Stream` observer, logging to stderr with a text
+format, is added to a new Subject instance.
+
+The underlying method on all
+log objects is `event(level, name, **kwd)`, but in keeping with other log 
+libraries, there are methods for each level of the form 
+`<levelname>(name, **kwd)`. 
 
     from semilog import Subject
     log = Subject()  # adds default Stream observer
-    log.event('i', 'hello', msg="Hello, world!")
+    log.info('hello', msg="Hello, world!")
+
+Prints something like: 
+
+    INFO 2014-12-03T20:24:07.493907 hello: msg="Hello, world!"
+
+But _unlike_ other libraries, this set of syntax sugar
+methods is generated dynamically, so you can add or change the set of methods
+by modifying the `Levelname` and `Severity` dicts in the `semilog.const` module.
+
+    from semilog import Subject
+    from semilog.const import Levelname, Severity
+    # make "code_blue" a synonym for "info"
+    Severity['B'], Levelname['B'] = Severity['I'], 'CODE_BLUE'
+    log = Subject()
+    log.code_blue('hello', msg="Hello, world!")
+
+Prints something like:
+
+    CODE_BLUE 2014-12-03T20:25:10.993022 hello: msg="Hello, world!"
 
 ## Multiple local destinations
 
-Using the `configure()` method, or directly modifying the `observers` attribute of the Subject instance, you can add multiple log destinations. A severity filter is understood by the built-in Observers.
+Using the `configure()` method, or directly modifying the `observers` attribute 
+of the Subject instance, you can add multiple log destinations. 
+A severity filter is understood by the built-in Observers.
 
     from semilog import Subject, Stream
     log = Subject({})  # empty dict avoids default config
@@ -53,8 +81,8 @@ Using the `configure()` method, or directly modifying the `observers` attribute 
         'console': Stream(fmt=fmt, severity='W'),
         # Log everything including traces to the file
         'logfile': Stream(fmt=fmt, stream=logfile, severity='T')}})
-    log.event('i', 'hello', msg="Hello, world!")  # only to file
-    log.event('w', 'goodbye', msg="Later!")  # both
+    log.info('hello', msg="Hello, world!")  # only to file
+    log.warn('goodbye', msg="Later!")  # both
 
 ## Remote destinations
 
@@ -72,7 +100,7 @@ Logging to remote destinations requires both a sender and receiver. The sender i
     server.start()
     # send some messages
     for i in range(5):
-        sender.event('i', 'hello', i=i)
+        sender.info('hello', i=i)
     # wait for messages to be processed
     while count < 5:
         time.sleep(0.1)
