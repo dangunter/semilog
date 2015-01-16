@@ -10,9 +10,9 @@ class Keys(object):
     event = 'event'
     lvl = severity = 'severity'
 
-MAX_SEVERITY = 99  # anything higher will be ignored
+MAX_SEVERITY = 99  #: anything higher will be ignored
 
-# Letter codes for message severity level
+#: Letter codes for message severity level
 Severity = {
     'F': 0,  # Fatal
     'E': 1,  # Error
@@ -22,7 +22,7 @@ Severity = {
     'T': 5,  # Trace
 }
 
-# Names for message severity level
+#: Names for message severity level
 Levelname = {
     'F': 'FATAL',
     'E': 'ERROR',
@@ -31,7 +31,7 @@ Levelname = {
     'D': 'DEBUG',
     'T': 'TRACE'}
 
-# Map severity to syslog priorities
+#: Map severity to syslog priorities
 Priority = {
     'F': syslog.LOG_CRIT,
     'E': syslog.LOG_ERR,
@@ -41,6 +41,6 @@ Priority = {
     'T': syslog.LOG_DEBUG,
 }
 
-DEFAULT_PORT = 9000  # Listen port for socket messages
+DEFAULT_PORT = 9000  #: Listen port for socket messages
 
-REC_SEP = '\n'  # record separator, for formatted text and JSON
+REC_SEP = '\n'  #: Record separator, for formatted text and JSON
