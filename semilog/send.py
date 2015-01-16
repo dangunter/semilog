@@ -35,6 +35,7 @@ class Subject(object):
     if that returns true, receive it through `event()`.
     """
     default_severity = 'I'  # of generated events
+    default_fmt = "{level} {isotime} {event}: {kvp}"
     default_config = {
         const.Keys.obs: {'default': 'Stream("{level} {isotime} {event}: {kvp}")'}
     }
