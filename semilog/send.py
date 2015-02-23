@@ -34,11 +34,8 @@ class Subject(object):
     All observers attached to a subject will be asked to `accept()` each event and,
     if that returns true, receive it through `event()`.
     """
-    default_severity = 'I'  # of generated events
     default_fmt = "{level} {isotime} {event}: {kvp}"
-    default_config = {
-        const.Keys.obs: {'default': 'Stream("{level} {isotime} {event}: {kvp}")'}
-    }
+    default_config = None # user can provide a default
     MAX_STORED = 100  # max. num events buffered async.
 
     def __init__(self, config=None, async=False):
@@ -50,8 +47,6 @@ class Subject(object):
                           avoid blocking the caller.
         """
         self.observers = {}
-        if config is None:
-            config = self.default_config
         self.configure(config)
         self._add_sugar()
         if async:
@@ -65,10 +60,21 @@ class Subject(object):
     def configure(self, config):
         """Configure the subject.
 
+        If this is None, then `self.default_config` will be used,
+        and if that is also None then a Stream will be created
+        using `self.default_format` and `self.default_severity`
+
          Args:
              config (dict): Has the following keys:
                   - observers: Mapping or list of Observer instances
         """
+        if config is None:
+            if self.default_config:
+                config = self.default_config
+            else:
+                config = {const.Keys.obs: {
+                    'default': Stream(self.default_fmt)
+                }}
         if not hasattr(config, 'items'):
             raise TypeError('configure: dict argument required')
         observers = config.get(const.Keys.obs, None)
@@ -81,16 +87,25 @@ class Subject(object):
                     obs = eval(obs)
                 self.observers[obs_name] = obs
 
-    def event(self, severity, name, **mapping):
-        """Log an event.
+    def event(self, severity, name, values=None, **mapping):
+        """Log an event with this subject.
+
+        For example:
+
+        s = Subject()
+        s.event('I', 'hello', {'1+1': 2})
+        s.event('W', 'bye', one_and_one=2, two_and_two='four')
 
         Args:
             severity (str): Letter code for severity
             name (str): Name of event
+            values (dict): Optional dictionary of key/value pairs
             mapping (dict): Other key/value pairs for event
         """
         K = const.Keys
         t = time.time()
+        if values:
+            mapping.update(values)
         mapping[K.ts] = t
         mapping[K.event] = name
         mapping[K.lvl] = severity[0].upper()
@@ -136,7 +151,8 @@ class Subject(object):
     def _add_sugar(self):
         """Add syntax sugar methods, one for each const.Levelname, to Subject."""
         for sev, lvl in const.Levelname.items():
-            sugar = lambda self, n, __sev=sev, **m: self.event(__sev, n, **m)
+            def sugar(self, n, d=None, __sev=sev, **m):
+                self.event(__sev, n, values=d, **m)
             setattr(self, lvl.lower(), types.MethodType(sugar, self))
 
 
@@ -228,9 +244,10 @@ class Stream(Observer):
     """Write events as JSON or pickled objects to a stream.
     """
 
+    default_stream = sys.stderr
     json_format = True  # if False, use pickle
 
-    def __init__(self, fmt=None, stream=sys.stderr, **kwargs):
+    def __init__(self, fmt=None, stream=None, **kwargs):
         """Create new stream.
 
         Default format is JSON, also available is Python pickle.
@@ -241,7 +258,7 @@ class Stream(Observer):
             kwargs (dict): Keywords for parent class
         """
         Observer.__init__(self, **kwargs)
-        self.stream = stream
+        self.stream = self.default_stream if stream is None else stream
         if fmt is not None:
             self._fmt = TextFormatter(fmt)
             self._dump = self._dump_text

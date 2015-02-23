@@ -2,19 +2,23 @@
 """
 Tests for send module
 """
-import pytest
+from io import StringIO
 import time
+
+import pytest
+
 from semilog import send
 
 def test_subject():
     s = send.Subject()
     assert len(s.observers) == 1
+    s.event('I', 'hello', {'1+1': 2})
+    s.event('W', 'bye', one_and_one=2, two_and_two='four')
 
 def test_configure():
     s = send.Subject({})
     s.configure({})
     assert len(s.observers) == 0
-    pytest.raises(TypeError, s.configure, None)
 
 def test_event():
     s = send.Subject({})
@@ -26,6 +30,7 @@ def test_sugar():
     obs = Last()
     s = send.Subject({'observers': [obs]})
     s.info('yo')
+    print(obs.last_event)
     assert obs.last_event['severity'] == 'I'
     s.error('doh')
     assert obs.last_event['severity'] == 'E'
@@ -48,6 +53,13 @@ def test_drain():
     dt = time.time() - t0
     assert dt >= (n * sec)
 
+def test_send_defaults():
+    obs = Last(severity='T')
+    s = send.Subject({'observers': [obs]})
+    s.trace('hello', {'1 + 1': 2})
+    e = obs.last_event
+    assert e['event'] == 'hello'
+
 class Pokey(send.Observer):
     def __init__(self, sec):
         send.Observer.__init__(self)
@@ -61,3 +73,4 @@ class Last(send.Observer):
         return True
     def event(self, event):
         self.last_event = event
+

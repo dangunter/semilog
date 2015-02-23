@@ -51,15 +51,15 @@ Prints something like:
 
     INFO 2014-12-03T20:24:07.493907 hello: msg="Hello, world!"
 
-But _unlike_ other libraries, this set of syntax sugar
-methods is generated dynamically, so you can add or change the set of methods
+Syntactic sugar
+methods such as `info` can be created by the user simply by
 by modifying the `Levelname` and `Severity` dicts in the `semilog.const` module.
 
     from semilog import Subject
     from semilog.const import Levelname, Severity
-    # make "code_blue" a synonym for "info"
-    Severity['B'], Levelname['B'] = Severity['I'], 'CODE_BLUE'
-    log = Subject()
+    # make "code_blue" a level past "trace"
+    Severity['B'], Levelname['B'] = Severity['T'] + 1, 'CODE_BLUE'
+    log = Subject(severity=Severity['B'])
     log.code_blue('hello', msg="Hello, world!")
 
 Prints something like:
